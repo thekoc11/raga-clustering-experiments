@@ -1,5 +1,5 @@
 import sys
-
+import os
 FILE_PRE = ''
 
 if sys.platform.startswith('linux'):
@@ -15,5 +15,3 @@ def get_platform_path(path):
         retPath = FILE_PRE + path.replace("/", "\\")
 
     return retPath
-
-
