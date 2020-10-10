@@ -7,7 +7,7 @@ import librosa
 import platform_details
 from numba import vectorize
 import audio_metadata
-
+#
 copy_base = platform_details.get_platform_path('Users/theko/Documents/Dataset')
 ALL_COMPOSITIONS = [name for name in os.listdir(copy_base) if os.path.isdir(os.path.join(copy_base, name))]
 
@@ -91,12 +91,12 @@ def create_file_artist_genre_ids(AUDIO_DATA, copy=True):
     for i in range(len(ra)):
         RAGA_ID[ra[i]] = i + 1
 
-    with open(artist_id_pth, 'a') as f:
+    with open(artist_id_pth, 'w') as f:
         for key, val in (ARTIST_ID.items()):
             f.write(f"{key};{val}\n")
         f.close()
 
-    with open(genre_id_pth, 'a', encoding="utf8") as f:
+    with open(genre_id_pth, 'w', encoding="utf8") as f:
         f.write(f";0\n")
         f.write(f"unknown;0\n")
         for key, val in RAGA_ID.items():
@@ -142,7 +142,7 @@ def add_genre_to_dataset(genreID, genreFilesPath, copy=True):
         else:
             artist = ''
         artists.append(artist)
-        fileIDs.append(str(genreID).zfill(3) + str(0).zfill(3) + str(i).zfill(3))
+        fileIDs.append(str(genreID).zfill(3) + str(0).zfill(3) + str(i+1).zfill(3))
     if genre.keys().__contains__(genreID):
         gen = genre[genreID]
     else:
@@ -316,6 +316,19 @@ def get_files_by_genre(genreId):
             retFiles.append(f)
     return retFiles
 
+def get_features_by_genre(genreId, feature='chroma'):
+    path = platform_details.get_platform_path_custom('E', "Features/" + feature + "/stft/")
+    all_features = os.listdir(path)
+    Feats = []
+    for f in all_features:
+        if get_Raga_ID(f) == genreId:
+            feat_path = os.path.join(path, f)
+            feat = os.listdir(feat_path)[0]
+            _feat = np.load(os.path.join(feat_path, feat))
+            Feats.append(_feat)
+
+    return Feats
+
 
 def save_file_audio_data(song_name):
     path = os.path.join(copy_base, song_name)
@@ -360,4 +373,8 @@ if __name__ == '__main__':
     # print(m.index)
     # AUDIOs = collate_and_add_celtic('/mnt/c/Dataset', AUDIOs)
     # create_file_artist_genre_ids(AUDIOs, copy=True)
-    add_genre_to_dataset(42, '/Nottusvaras', copy=True)
+    # add_genre_to_dataset(42, '/vismaya/mp3', copy=True)
+    feats = get_features_by_genre(42)
+    for f in feats:
+        print(f.shape)
+    print(len(feats))

@@ -1,5 +1,20 @@
 import numpy as np
 
+
+
+def index_to_pitch(index):
+    PID = {0:'C', 1:'C#', 2:'D', 3:'E!', 4:'E', 5:'F', 6:'F#', 7:'G', 8:'G#', 9:'A', 10:'B!', 11:'B', 12:' '}
+    return PID[index]
+
+def _default_bigram_dict():
+    Classes= {}
+    for i in range(13):
+        for j in range(13):
+            ind = index_to_pitch(i) + index_to_pitch(j)
+            Classes[ind] = 0
+    return Classes
+
+
 class Viewpoints:
     def __init__(self, chroma):
         self.funcs = {'pitch': self.get_pitches,
@@ -13,6 +28,7 @@ class Viewpoints:
                       'duration_ratio': self._calculate_dratio,
                       'pcd': self._compute_pcd,
                       'weighted_pcd': self._compute_pcd_weighted,
+                      'bigram_pcd' : self._compute_pcd_bigram,
                       }
         self.chroma = chroma
         self.dur = []
@@ -104,6 +120,19 @@ class Viewpoints:
         pcd /= tot_dur
 
         return pcd
+
+    def _compute_pcd_bigram(self):
+        tot_events = self.pitches.shape[0]
+        pcds = []
+        classes = _default_bigram_dict()
+        for i in range(1, tot_events):
+            ind = index_to_pitch(self.pitches[i - 1]) + index_to_pitch(self.pitches[i])
+            classes[ind] += 1
+        for (key, value) in classes.items():
+            pcds.append(value / tot_events)
+
+        pcds = np.array(pcds)
+        return pcds
 
     def _calculate_dratio(self):
         dratios = np.zeros(len(self.dur))

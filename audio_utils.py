@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import ffmpeg
 import numba
 from Viewpoints import Viewpoints
+import platform_details
+from gated_selection import gated_selection
 
 PITCHES = {i: 0 for i in range(12)}
 GLOBAL_SAMPLING_RATE = 22050
@@ -52,7 +54,7 @@ def get_STFT(files):
 
 def get_chromas(file, metric='cens'):
     if metric == 'stft':
-        chroma_path = file[0].replace('out000.wav', 'chromaSTFT.npy')
+        chroma_path = file[0].replace('out000.wav', '_stft.npy')
     else:
         chroma_path = file[0].replace('.wav', '_chromaCENS.npy')
     chromas = np.load(chroma_path)
@@ -138,24 +140,6 @@ def get_dominant_pitches(files, metric='stft'):
             Dom_pitches.append(dom_pitches)
     Dom_pitches = np.array(Dom_pitches)
     return Dom_pitches
-
-
-def _calculate_dom_pitches(pitches):
-    dom_pitches = [[], [], [], [], [], [], [], [], [], [], [], []]
-    dom_pitches[0] = pitches
-    dom_pitches[1] = ((dom_pitches[0] + 1) % 12)
-    dom_pitches[2] = ((dom_pitches[0] + 2) % 12)
-    dom_pitches[3] = ((dom_pitches[0] + 3) % 12)
-    dom_pitches[4] = ((dom_pitches[0] + 4) % 12)
-    dom_pitches[5] = ((dom_pitches[0] + 5) % 12)
-    dom_pitches[-1] = (dom_pitches[0] - 1) % 12
-    dom_pitches[-2] = (dom_pitches[0] - 2) % 12
-    dom_pitches[-3] = (dom_pitches[0] - 3) % 12
-    dom_pitches[-4] = (dom_pitches[0] - 4) % 12
-    dom_pitches[-5] = (dom_pitches[0] - 5) % 12
-    dom_pitches[-6] = (dom_pitches[0] - 6) % 12
-
-    return np.array(dom_pitches)
 
 ## Deprecated
 def get_note_events_and_distributions(files):
@@ -245,22 +229,42 @@ def  get_chromagram(files, metric='cens'):
     for filename in files:
         y = np.load(filename.replace('.wav', '.npy'))
         sr = GLOBAL_SAMPLING_RATE
-        y_harm, y_perc = librosa.effects.hpss(y)
         if metric == 'cens':
-            chroma = librosa.feature.chroma_cens(y_harm, sr)
+            chroma = librosa.feature.chroma_cens(y, sr)
             final_shape = int(get_one_min(sr)/512) + 2
         elif metric == 'stft':
-            chroma = librosa.feature.chroma_stft(y_harm, sr, n_fft=512, hop_length=128)
-            final_shape = int(get_one_min(sr) / 128) + 2
+            chroma = librosa.feature.chroma_stft(y, sr, n_fft=2048, hop_length=512)
+            final_shape = int(get_one_min(sr) / 512) + 2
         else:
-            chroma = librosa.feature.chroma_cqt(y_harm, sr)
+            chroma = librosa.feature.chroma_cqt(y, sr)
             final_shape = int(get_one_min(sr) / 512) + 2
         if chroma.shape[1] < final_shape:
             chroma = np.hstack([chroma, np.zeros((chroma.shape[0], (final_shape - chroma.shape[1])))])
         Chroma.append(chroma)
     Chroma = np.array(Chroma)
+    chroma_name_split = platform_details.get_filename(files[0]).split('out')
+    song = platform_details.get_directory(files[0], mode='path')
+    datasetDir = platform_details.get_directory(song, mode='path')
+    chroma_name = chroma_name_split[0] + '_' + metric + '.npy'
+
+    dirPath = os.path.join(os.path.join(platform_details.get_platform_path_custom('E', "Features/chroma"), metric),
+                           platform_details.get_directory(files[0], mode='name'))
+    try:
+        os.mkdir(dirPath)
+    except:
+        pass
+    np.save(os.path.join(dirPath, chroma_name), Chroma, allow_pickle=False)
     return Chroma
 
+def get_spectrogram(files):
+    Spec = []
+    for filename in files:
+        y = np.load(filename.replace('.wav', '.npy'))
+        sr = GLOBAL_SAMPLING_RATE
+        freqs, times, mags = librosa.reassigned_spectrogram(y, sr)
+        mags_db = librosa.power_to_db(mags, ref=np.max)
+        Spec.append(mags_db)
+    return Spec
 
 def _calculate_pcd_single(sample, sr, metric='cens'):
     y_harm, y_perc = librosa.effects.hpss(sample)
@@ -287,10 +291,29 @@ def cut_file_1min_segments(filename):
                                      c='copy')
     out.run()
 
+import os
+def extract_audio_from_videos(folder):
+    files = os.listdir(folder)
+    i = 1
+    for fname in files:
+        if not os.path.isdir(folder+fname):
+            new_name = ""
+            if "-" in list(fname):
+                new_name = fname.split('-')
+                name = new_name[0]
+            else:
+                new_name = fname.replace('.opus', '')
+                name = new_name
+            name = name + '.mp3'
+            out = ffmpeg.input(folder+'/'+fname).output(filename=folder+"mp3/" + name, format='mp3')
+            out.run()
+            i = i + 1
+
 if __name__ == '__main__':
     # files = librosa.util.find_files(copy_base)
     # fname = np.random.choice(files)
-
+    path = platform_details.get_platform_path("/vismaya/")
+    extract_audio_from_videos(path)
     # print(fname)
     # cut_file_1min_segments(fname)
     # signal, sr = librosa.load(fname)
@@ -311,8 +334,3 @@ if __name__ == '__main__':
     # print(X)
     # print(_set_durations(X))
     # get_pcds_bigram([])
-    chroma = np.zeros(20)
-    for i in range(20):
-        chroma[i] = int(np.random.choice((np.arange(12))))
-    print(chroma)
-    print(_calculate_dom_pitches(chroma).shape)

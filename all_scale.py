@@ -15,7 +15,7 @@ def get_data_aug(data):
     :return: The input array in all scales
         shape: (12, 13, ) or (12, 13, *)
     """
-    if data.shape[0] != 13:
+    if data.shape[0]  != 13:
         raise TypeError(f"data.shape[0] is {data.shape[0]} while the expected value is 13")
 
     aug_data_shape = [12] + list(data.shape)
@@ -41,7 +41,7 @@ def get_one_hot_rep(data):
     :return:
     """
     if data.dtype == 'int32':
-        one_hot_data = np.zeros((13, data.shape[0]))
+        one_hot_data = np.zeros((13, len(data)))
         for j in range(len(data)):
             one_hot_data[data[j]][j] = 1
         data = one_hot_data
@@ -75,6 +75,7 @@ class Augmentor:
         self.X = data
         self.data_shape = data.shape
         self.type = type
+        self.Pitches = False
         # As of now, there are only 4 scale-sensitive features: pcds(unigram & bigram), pitches and chromagrams.
         # any n-gram pcds are perceived as distributions, while pitches and chromagrams are perceived as events.
         if type == 'dists':
@@ -84,13 +85,14 @@ class Augmentor:
             if 13 in data.shape: # if this is true, data this is a chromagram
                 ax_ind = data.shape.index(13)
                 self.X = data.reshape(data.shape[ax_ind], -1)
-            elif (max(data) in range(13)) and min(data) == 0.0: # if this is true, then data is an array of pitch events
+            elif (max(data) in range(13)) and min(data) in range(13): # if this is true, then data is an array of pitch events
                 data = data.astype('int32')
+                self.Pitches = True
                 self.X = get_one_hot_rep(data)
 
     def get_augmented_data(self):
         aug_data = get_data_aug(self.X)
-        if self.type == 'events': # if data was pitch events, then convert them back to the original form
+        if self.Pitches: # if data was pitch events, then convert them back to the original form
             aug_data = get_linear_rep(aug_data, self.data_shape)
         return aug_data
 
@@ -169,7 +171,7 @@ def main():
     for c in chroma0:
         vp = Viewpoints(c)
         events, dists = vp.scale_sensitive_params()
-        # print(events[0].shape, events[1].shape)
+        print(events[0].shape, events[1].shape)
         feats0.append(events[1])
         y0.append(3)
     for c in chroma1:
